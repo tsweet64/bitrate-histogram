@@ -19,10 +19,14 @@ def run_ffmpeg(filename):
         return process.communicate()[0].decode('utf-8')
 
 def get_bitrate(filename):
-    ffoutput = json.loads(run_ffmpeg(filename))
-    bitratestr = ffoutput["format"]["bit_rate"]
-    bitrate = float(bitratestr) / 1000 # to kbits
-    print(bitrate)
+    try:
+        ffoutput = json.loads(run_ffmpeg(filename))
+        bitratestr = ffoutput["format"]["bit_rate"]
+        bitrate = float(bitratestr) / 1000 # to kbits
+    except Exception as e:
+        print("Failed to process file: " + filename)
+        return None
+    #print(bitrate)
     return bitrate
 
 # https://gist.github.com/joezuntz/2f3bdc2ab0ea59229907
@@ -38,6 +42,11 @@ def ascii_hist(hist, bin_edges):
 with Pool(cpu_count()) as pool:
     bitrate_list = pool.map_async(get_bitrate, glob.iglob(GLOB_PATH, recursive=True)).get()
 
-bins = np.arange(min(bitrate_list), max(bitrate_list) + BIN_SIZE, BIN_SIZE) # bin width of BIN_SIZE
-hist, bin_edges = np.histogram(list(bitrate_list), bins)
-ascii_hist(hist, bin_edges)
+bitrate_list = list(filter(lambda item: item is not None, bitrate_list)) # Remove None values from list (items which failed to be analyzed)
+try:
+    bins = np.arange(min(bitrate_list), max(bitrate_list) + BIN_SIZE, BIN_SIZE) # bin width of BIN_SIZE
+    hist, bin_edges = np.histogram(list(bitrate_list), bins)
+    ascii_hist(hist, bin_edges)
+except Exception as e:
+    print("Failed to parse bitrates list. Two or more files not found maybe?")
+    sys.exit(1)
